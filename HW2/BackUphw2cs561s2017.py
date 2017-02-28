@@ -1,5 +1,10 @@
 __author__ = 'deepika'
 
+"""
+Vocareum Link
+https://labs.vocareum.com/main/main.php?m=editor&nav=1&asnid=11155&stepid=11156
+"""
+
 import copy
 import sys
 import random
@@ -232,7 +237,14 @@ class PLResolution:
             return True
         return False
 
-    def pl_resolve(self, ci, cj, resolvedClauses): #Takes input as instances of Clause class
+    def isSelfSame(self, clauses):
+        if (clauses[0].same(clauses[1])):
+            return True
+        return False
+
+    def pl_resolve(self, ci, cj): #Takes input as instances of Clause class
+
+        resolvedClauses = dict()
 
         for i in range(0, len(ci.clauses)):
             for j in range(0, len(cj.clauses)):
@@ -251,10 +263,10 @@ class PLResolution:
                     if (tempB not in tempClause):
                         tempClause += tempB
 
-                    print "Resolved ", str(getFormat(ci)), " & ", str(getFormat(cj)), " => ", str(getFormat_2(tempClause))
+                    #print "Resolving ", str(getFormat(ci)), " & ", str(getFormat(cj)), " => ", str(getFormat_2(tempClause))
 
                     if (tempClause == [] or len(tempClause) == 0): #Early termination
-                        print " Terminating early "
+                        #print " Terminating early "
                         return [], False
 
                     else:
@@ -262,13 +274,24 @@ class PLResolution:
                         temp_dict[Clause(tempClause)] = sys.maxint
 
                         if (len(tempClause) == 2 and self.isSelfCompliment(tempClause)):
-                            print " Ignore because it evaluates to True always"
+                            #print " Ignore because it evaluates to True always"
+                            pass
 
-                        elif (self.isSubset(temp_dict, resolvedClauses)):
-                            #pass
-                            print " Already present in resolved clauses"
+                        """
+                        Extra code added. To take care of clauses with same type such that X11 V x11 is replaced with X11
+                        """
+                        if (len(tempClause) == 2 and self.isSelfSame(tempClause)):
+                            #print " It is the same case", tempClause
+                            tempClause.pop(0)
+                            #print " Effective tempclause ", tempClause
+
+                        if ()
+
+                        if (self.isSubset(temp_dict, resolvedClauses)):
+                            pass
+                            #print " Already present in resolved clauses"
                         else:
-                            print " Adding is resolvedClauses"
+                            #print " Adding in resolvedClauses"
                             global GLOBAL_CLAUSE_COUNT
                             GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
                             resolvedClauses[Clause(tempClause)] = GLOBAL_CLAUSE_COUNT
@@ -281,16 +304,15 @@ class PLResolution:
             n = len(self.setOfClause.items())
             pairs = [(self.setOfClause.items()[i][0], self.setOfClause.items()[j][0]) for i in range(n) for j in range(i+1, n)]
 
-            resolvedClauses = dict()
             for (ci, cj) in pairs:
-                resolvents, result = self.pl_resolve(ci, cj, resolvedClauses)
+                resolvents, result = self.pl_resolve(ci, cj)
                 if not( result) :
                     print " PHI FOUND. RETURNING FALSE"
                     return False
                 if (len(new.keys()) == 0):
                     new = resolvents
                 else:
-                    new.update(resolvents)
+                    new = self.merge(new, resolvents)
 
             print "Looped through all pairs"
 
@@ -300,7 +322,6 @@ class PLResolution:
             else:
                 print " Updating set of clause"
                 self.setOfClause = self.merge(self.setOfClause, new)
-                #print " After Updating set of clause for next iteration "
                 displayCNF(self.setOfClause)
                 print "==================End Display============="
 
@@ -470,11 +491,12 @@ if __name__ == "__main__":
             relationships.append(line.strip())
 
     convertToCNF(relationships, M, N)
-    #print " RESULT = "
-    #displayCNF(setOfClauses)
+
+    print " Started with CNF"
+    displayCNF(setOfClauses)
 
     PLResolve = PLResolution(setOfClauses)
-    #print PLResolve.applyResolution()
+    print PLResolve.applyResolution()
 
     WalkSat = WalkSatAlgo(setOfClauses)
     model = WalkSat.resolve()
