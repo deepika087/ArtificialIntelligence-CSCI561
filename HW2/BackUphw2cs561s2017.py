@@ -8,6 +8,11 @@ https://labs.vocareum.com/main/main.php?m=editor&nav=1&asnid=11155&stepid=11156
 import copy
 import sys
 import random
+import logging
+import time
+import concurrent.futures
+
+logging.basicConfig(filename='example.log',level=logging.DEBUG)
 
 setOfClauses = dict()
 GLOBAL_CLAUSE_COUNT = 0
@@ -55,31 +60,6 @@ class Literal:
             return model[self]
         else:
             return not model[self.getCompliment()]
-
-"""
-#Helper functions
-"""
-def getFormat(ci):
-    result = ""
-    firstRecord = True
-    for _c in ci.clauses:
-        if (firstRecord):
-            result = result + _c.formattedString()
-            firstRecord = False
-        else:
-            result += ("V " + _c.formattedString())
-    return result
-
-def getFormat_2(tempClause):
-    result = ""
-    firstRecord = True
-    for _c in tempClause:
-        if (firstRecord):
-            result = result + _c.formattedString()
-            firstRecord = False
-        else:
-            result += ("V " + _c.formattedString())
-    return result
 
 def findEffectiveClauses(Clauses, clauseA): #clauses remove ClauseA and
     effectiveResult = []
@@ -242,11 +222,37 @@ class PLResolution:
             return True
         return False
 
-    def pl_resolve(self, ci, cj): #Takes input as instances of Clause class
+    def removeRedundantClauses(self, clauses): #clauses here is a List<Literal>
+        resultantClauses = []
 
-        resolvedClauses = dict()
+        for _c in clauses:
+            #print " Investigating literal : ", _c, "in clause ", clauses
+            if (_c not in resultantClauses or _c.getCompliment() not in clauses):
+                countDuplicates = clauses.count(_c)
+                countCompliments = clauses.count(_c.getCompliment())
 
-        for i in range(0, len(ci.clauses)):
+                if (countDuplicates == 1 and countCompliments == 0):
+                    resultantClauses.append(_c)
+                elif(countDuplicates > 1 and countCompliments == 0): #all other occurrences will be removed
+                    resultantClauses.append(_c)
+                elif(countDuplicates == 1 and countCompliments == 1): #Both will cancel out each other A V ~A
+                    return []
+                    #pass
+                elif(countDuplicates > 1 and countCompliments == 1): # Of the form A V A V A V ~A
+                    return []
+                    #pass # All cancel out each other
+                elif(countDuplicates > 1 and countCompliments > 1 ): #OF the form A V A V A V ~A V ~A and so
+                    return []
+                    #pass
+                else:
+                    print " Encountered a unhandled case for ", _c , " in ", clauses, " with duplicates = ", countDuplicates, " and compliments = ",countCompliments
+        return resultantClauses
+
+    def pl_resolve(self, ci, cj, resolvedClauses): #Takes input as instances of Clause class
+
+        #resolvedClauses = dict()
+
+        for i in range(0, len(ci.clauses)):  #ci.clauses is a list<Literals>
             for j in range(0, len(cj.clauses)):
 
                 clauseA = ci.clauses[i] #Type wise clauseA is a Literal
@@ -271,7 +277,6 @@ class PLResolution:
 
                     else:
                         temp_dict = dict()
-                        temp_dict[Clause(tempClause)] = sys.maxint
 
                         if (len(tempClause) == 2 and self.isSelfCompliment(tempClause)):
                             #print " Ignore because it evaluates to True always"
@@ -285,7 +290,38 @@ class PLResolution:
                             tempClause.pop(0)
                             #print " Effective tempclause ", tempClause
 
-                        if ()
+
+                        if (len(tempClause) > 2 ):
+                            #logging.debug("Initally temp clause was " + str(tempClause))
+                            tempClause = self.removeRedundantClauses(tempClause)
+                            #logging.debug("After temp clause was " + str(tempClause))
+                            #if (len(tempClause) == 0):
+                                #logging.debug("The clause will be removed thanks to new code")
+                            #pass
+
+                        """
+                        New Code
+                        """
+                        if (len(tempClause) != 0):
+                            temp_dict[Clause(tempClause)] = sys.maxint
+
+                            if (self.isSubset(temp_dict, resolvedClauses)):
+                                pass
+                                #print " Already present in resolved clauses"
+                            else:
+                                #print " Adding in resolvedClauses"
+                                global GLOBAL_CLAUSE_COUNT
+                                GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
+                                resolvedClauses[Clause(tempClause)] = GLOBAL_CLAUSE_COUNT
+                        #else:
+
+
+                        """
+                        if (len(tempClause) == 0):
+                            print " New early termination "
+                            return [], False
+
+                        temp_dict[Clause(tempClause)] = sys.maxint
 
                         if (self.isSubset(temp_dict, resolvedClauses)):
                             pass
@@ -295,39 +331,72 @@ class PLResolution:
                             global GLOBAL_CLAUSE_COUNT
                             GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
                             resolvedClauses[Clause(tempClause)] = GLOBAL_CLAUSE_COUNT
+                        """
 
         return resolvedClauses, True #don't add ci and cj in resolvedClauses if nothing is common between them
 
     def applyResolution(self):
         new = dict()
+        logging.debug("Starting with clauses of size : {}".format(len(self.setOfClause.items())))
         while True:
             n = len(self.setOfClause.items())
-            pairs = [(self.setOfClause.items()[i][0], self.setOfClause.items()[j][0]) for i in range(n) for j in range(i+1, n)]
 
-            for (ci, cj) in pairs:
-                resolvents, result = self.pl_resolve(ci, cj)
-                if not( result) :
-                    print " PHI FOUND. RETURNING FALSE"
-                    return False
+            start = time.time()
+            #pairs = [(self.setOfClause.items()[i][0], self.setOfClause.items()[j][0]) for i in range(n) for j in range(i+1, n)]
+            #logging.debug("Time taken to form pairs: {}".format(str(time.time() - start)))
+            logging.debug(" The count of clauses is : {}".format(n))
+
+            """
+            Adding threading code
+            """
+            startOuter = time.time()
+            resolvents = dict()
+
+            #totalTime = 0
+            for i in range(n):
+                for j in range(i+1, n):
+                    ci = self.setOfClause.items()[i][0]
+                    cj = self.setOfClause.items()[j][0]
+
+                    resolvents, result = self.pl_resolve(ci, cj, resolvents)
+                    if not( result) :
+                        print " PHI FOUND. RETURNING FALSE"
+                        return False
+
+                """
                 if (len(new.keys()) == 0):
                     new = resolvents
                 else:
+                    start = time.time()
                     new = self.merge(new, resolvents)
+                    totalTime = totalTime + (time.time() - start)
+                """
+            #logging.debug("Cummulative Time taken by inner merge : {}".format(totalTime))
+
 
             print "Looped through all pairs"
+            logging.debug("Time taken to compare all pairs : {}".format(str(time.time() - startOuter)))
 
-            if(self.isSubset(new, self.setOfClause)):
+            start = time.time()
+            new = resolvents
+            updatedNew, resultOfSubset = self.isSubsetSpecial(new, self.setOfClause)
+            if(resultOfSubset):
+                logging.debug("Time taken to figure out if proper subset : {}".format(str(time.time() - start)))
                 print " SUBSET FOUND. WE ARE IN LOOP. RETURNING TRUE"
                 return True
             else:
                 print " Updating set of clause"
-                self.setOfClause = self.merge(self.setOfClause, new)
+                logging.debug("Size of new : {}, size of updated new : {}".format(len(new.items()), len(updatedNew.items())))
+                self.setOfClause = self.merge(self.setOfClause, updatedNew) #BEcuase a few elements of new have already been matched
+                logging.debug("Time taken to merge : {}".format(str(time.time() - start)))
+                logging.debug("After merge size of clause : {}".format(len(self.setOfClause.items())))
                 displayCNF(self.setOfClause)
                 print "==================End Display============="
 
     def isMatch(self, cA, cB):
 
         list1 = cA.clauses
+        #logging.debug(cB.clauses)
         list2 = cB.clauses
 
         if (len(list1) != len(list2)):
@@ -362,6 +431,9 @@ class PLResolution:
         length=len(ClauseSetA.items()) #these many number of blocks should match
         count = 0;
 
+        if ( len(ClauseSetKB.items()) < length):
+            return False
+
         for _clauseSetA, valA in ClauseSetA.items():
 
             found = False
@@ -379,6 +451,34 @@ class PLResolution:
             return True
         return False
 
+    def isSubsetSpecial(self, ClauseSetA, ClauseSetKB): #If each item of ClauseSetA is already present in ClauseSetKB
+
+        newUpdated = copy.copy(ClauseSetA) #ClauseSetA will be updated
+        found = False
+        length=len(ClauseSetA.items()) #these many number of blocks should match
+        count = 0;
+
+        if ( len(ClauseSetKB.items()) < length):
+            return newUpdated, False
+
+        for _clauseSetA, valA in ClauseSetA.items():
+
+            found = False
+            for blockKB, valBR in ClauseSetKB.items():
+
+                if (self.isMatch(_clauseSetA, blockKB)):
+                    newUpdated.pop(_clauseSetA, None) #Remove this Item since it is a match
+                    found=True
+                    break
+            if (found == True): #Not a subset, More clauses to go to compare
+                count = count + 1
+                continue
+            else:
+                return newUpdated, False
+        if (found == True and count == length):
+            return newUpdated, True
+        return newUpdated, False
+
 def displayCNF(setOfClauses):
 
     for clause, value in sorted(setOfClauses.items(), key=lambda x: x[1]):
@@ -392,7 +492,7 @@ def displayCNF(setOfClauses):
                 result += ("V " + _c.formattedString())
         print result
 
-def  onePersonOneTable(person, tables):
+def onePersonOneTable(person, tables):
 
     global GLOBAL_CLAUSE_COUNT
     GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
@@ -494,6 +594,8 @@ if __name__ == "__main__":
 
     print " Started with CNF"
     displayCNF(setOfClauses)
+    print " Started with CNF - END"
+
 
     PLResolve = PLResolution(setOfClauses)
     print PLResolve.applyResolution()

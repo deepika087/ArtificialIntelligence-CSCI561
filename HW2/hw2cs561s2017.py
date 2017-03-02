@@ -3,9 +3,64 @@ __author__ = 'deepika'
 import copy
 import sys
 import random
+#import logging
 
-setOfClauses = dict()
-GLOBAL_CLAUSE_COUNT = 0
+#logging.basicConfig(filename='dpll_debug.log',level=#logging.DEBUG)
+
+class CustomPrint:
+    def __init__(self, model, person, table):
+        self.model = model
+        self.person = person #count of person
+        self.table = table
+
+    def printModel(self):
+        target = open('output.txt', 'w+')
+
+        if (self.model is None or self.model == False or not isinstance(self.model, dict) or len(self.model) == 0):
+            target.write("no")
+        else:
+            def display_Person_Table(personTable):
+                for (k,v) in personTable.items():
+                    target.write(str(k+1) + " " + str(v+1) + "\n")
+
+            personTable = dict()
+
+            target.write("yes\n")
+            for _p in range(0, self.person):
+                personTable[_p] = None
+
+            tables = set([i for i in range(0, self.table)])
+            persons = set([i for i in range(0, self.person)])
+
+            for _p in range(0, self.person):
+                tbl = self.searchForTable(_p)
+                if (tbl is not None):
+                    personTable[_p] = tbl
+                    tables = tables - set([tbl])
+                    persons = persons - set([_p])
+
+            if (len(persons) == 0):
+                display_Person_Table(personTable)
+            else:
+                #print " Handling the case when not all person were assigned a table"
+                for _p in range(0, self.person):
+                    if (personTable[_p] is None):
+                        personTable[_p] = tables[0]
+                        tables = tables - set([tables[0]])
+                display_Person_Table(personTable)
+        target.close()
+
+    def searchForTable(self, _person): #Particular person
+
+        for (k, v) in self.model.items(): #model is dictionary of Literal, boolean
+            #print "KV = ", k, v
+            if (k.person == _person and k.isNeg == True and v == True):
+                #print " Picking Literal : ", k, " for person : ", person + 1
+                return k.table
+            elif (k.person == _person and k.isNeg == False and v == False):
+                #print " Picking Literal (False match): ", k, " for person : ", person + 1
+                return k.table
+        return None
 
 class Literal:
     def __init__(self, person, table, isNeg):
@@ -41,63 +96,40 @@ class Literal:
 
     def __eq__(self, other):
         try:
-            return (self.person, self.table, self.isNeg) == (other.person, other.table, other.isNeg)
+            return isinstance(other, self.__class__) and (self.person, self.table, self.isNeg) == (other.person, other.table, other.isNeg)
         except AttributeError:
             return NotImplemented
 
     def applyModel(self, model):
         if (self in model):
             return model[self]
-        else:
+        elif (self.getCompliment() in model):
             return not model[self.getCompliment()]
-
-"""
-#Helper functions
-"""
-def getFormat(ci):
-    result = ""
-    firstRecord = True
-    for _c in ci.clauses:
-        if (firstRecord):
-            result = result + _c.formattedString()
-            firstRecord = False
         else:
-            result += ("V " + _c.formattedString())
-    return result
+            return None
 
-def getFormat_2(tempClause):
-    result = ""
-    firstRecord = True
-    for _c in tempClause:
-        if (firstRecord):
-            result = result + _c.formattedString()
-            firstRecord = False
-        else:
-            result += ("V " + _c.formattedString())
-    return result
-
-def findEffectiveClauses(Clauses, clauseA): #clauses remove ClauseA and
-    effectiveResult = []
-    for item in Clauses:
-        if (item.same(clauseA)):
-            continue
-        else:
-            effectiveResult.append(item)
-    return effectiveResult
+    def inspect(self):
+        """
+        Should work like this
+        inspect_literal(P) -> (P, True)
+        inspect_literal(~P) -> (P, False)
+        """
+        if not (self.isNeg): #IsNeg means form is ~A
+            return self, True
+        return self.getCompliment(), False
 
 class WalkSatAlgo:
-    def __init__(self, _setOfClause):
-        self.setOfClause = _setOfClause
+    def __init__(self, cnfKB):
+        self.knowledgeBase = cnfKB #knowledgeBase is a List<Clause>
 
-    def getSymbols(self, clause): #Input is a list of Clause class
+    #start here
+    def getSymbols(self):
         result = set() #It will be a dictionary of Literal and value
 
-        for _c in clause:
-            for literal in _c.clauses:
-                if(literal in result or literal.getCompliment() in result):
-                    pass
-                else:
-                    result.add(literal)
+        for _c in self.knowledgeBase:
+            target = _c.prop_clause()
+            target = set(filter(lambda x: x not in result and x.getCompliment() not in result, target))
+            result.update(target)
         return result
 
     def assignRandomValues(self, symbols): #symbols is a set of type <Literal> and this returns dict <Literal, Boolean>
@@ -108,36 +140,32 @@ class WalkSatAlgo:
 
         return model
 
-    def pl_true(self, clauses, model): #clauses = List<Clause>
-        result = False
-
-        for _c in clauses.clauses: #these clauses should be ORed together
-            result = result or _c.applyModel(model)
-
-        return result
-
+    """
+    Inputs : clause : Instance of class Clause = List<Literal>
+    """
     def resolve(self,  p=0.5, max_flips=10000):
-        symbols = self.getSymbols(self.setOfClause.keys()) #symbols is a dict of Literal --> Value
-        #print symbols
+        symbols = self.getSymbols() #Gets symbols from KnowledgeBase which is a List<Clause>
+        #logging.debug("Set of symbols : " + str(symbols))
         model = self.assignRandomValues(symbols)
-        #print model
+        #logging.debug("Initial model : " + str(model))
 
         for i in range(max_flips):
-            #print "------------------Starting iteration : ", i + 1, "with model", model
+            #logging.debug("------------------Starting iteration : " + str(i + 1) + "with model" + str(model))
             satisfied, unsatisfied = [], [] #Both of these are List<Clause>
-            for _c in self.setOfClause.keys(): #This is List<Clause>
-                (satisfied if self.pl_true(_c, model) else unsatisfied).append(_c)
+            for clause in self.knowledgeBase: #This is List<Clause>
+                (satisfied if clause.pl_true(model) else unsatisfied).append(clause)
             #print " Satisfied : ", satisfied
             #print " Unsatisfied : ", unsatisfied
 
             if (len(unsatisfied) == 0):
-                #print " Found solution "
+                print " Found solution "
                 return model
             randomClause = random.choice(unsatisfied)
             if p > random.uniform(0.0, 1.0):
-                sym = random.sample(symbols, 1)
+                sym = random.sample(randomClause.prop_clause(), 1) #this returns a list. Therefore pick first element to be the effective symbol
                 sym = sym[0]
-                #print " PROBABILITY WILL DECIDE ", sym
+                sym = sym if sym in model else sym.getCompliment()
+                #logging.debug(" PROBABILITY WILL DECIDE " + str(sym))
             else:
                 #Flip the symbol that maximizes number of sat clauses
                 def sat_count(sym): #This function flips a literal and computes unsatfied clauses
@@ -146,8 +174,8 @@ class WalkSatAlgo:
                     model[sym] = not model[sym]
                     #print " New model = ", model
                     #count = len([clause for clause in self.setOfClause.keys() if self.pl_true(clause, model)])
-                    for _c in self.setOfClause.keys(): #This is List<Clause>
-                        (temp_sat if self.pl_true(_c, model) else temp_unsat).append(_c)
+                    for clause in self.knowledgeBase: #This is List<Clause>
+                        (temp_sat if clause.pl_true(model) else temp_unsat).append(clause)
                     model[sym] = not model[sym]
 
                     #print " Satisfied : ", temp_sat
@@ -157,9 +185,8 @@ class WalkSatAlgo:
                     #print " For sym ", sym, " count = ", count
                     return count
                 sym = max(symbols, key=sat_count)
-                #print "Selected = ", sym
+                #logging.debug("Selected symbol = " + str(sym))
             model[sym] = not model[sym]
-
         return None
 
     def searchForTable(self, person, model):
@@ -209,13 +236,13 @@ class WalkSatAlgo:
             display_Person_Table(personTable)
 
 class Clause:
-    def __init__(self, clauses=[]):
-       self.clauses=clauses
+    def __init__(self, literals=[]):
+       self.literals=literals
 
     def __repr__(self):
         firstRecord = True
         result = ""
-        for _c in self.clauses:
+        for _c in self.literals:
             if (firstRecord):
                 result += _c.formattedString()
                 firstRecord=False
@@ -223,167 +250,173 @@ class Clause:
                 result += ("V " + _c.formattedString())
         return result
 
-class PLResolution:
-    def __init__(self, _setOfClause):
-        self.setOfClause = _setOfClause
+    def prop_clause(self): #This will function will receive a Clause as input and it will return symbols in that Clause
 
-    def isSelfCompliment(self, clauses):
-        if (clauses[0].complimentary(clauses[1])):
+        result = set()
+
+        for literal in self.literals:
+            if(literal in result or literal.getCompliment() in result):
+                pass
+            else:
+                result.add(literal)
+
+        return result
+
+    def pl_true(self, model): #clauses = List<Clause>
+        if (len(model) == 0):
+            return None
+
+        result = False
+
+        for literal in self.literals: #these clauses should be ORed together
+            temp_result = literal.applyModel(model)
+            if (temp_result is None):
+                return None
+            result = result or temp_result
+
+        return result
+
+    def is_unit(self):
+        return True if len(self.literals) == 1 else False
+
+    def contains_symbol(self, symbol): #symbols is Literal here
+        if (symbol in self.literals):
             return True
         return False
 
-    def pl_resolve(self, ci, cj, resolvedClauses): #Takes input as instances of Clause class
+    def unit_clause_assign(self, model):
+        P, value = None, None
 
-        for i in range(0, len(ci.clauses)):
-            for j in range(0, len(cj.clauses)):
-
-                clauseA = ci.clauses[i] #Type wise clauseA is a Literal
-                clauseB = cj.clauses[j]
-
-                if (clauseA.complimentary(clauseB)):
-                    tempClause = []
-
-                    tempA = findEffectiveClauses(copy.copy(ci.clauses), clauseA)
-                    tempB = findEffectiveClauses(copy.copy(cj.clauses), clauseB)
-
-                    if (tempA not in tempClause):
-                        tempClause += tempA
-                    if (tempB not in tempClause):
-                        tempClause += tempB
-
-                    #print "Resolved ", str(getFormat(ci)), " & ", str(getFormat(cj)), " => ", str(getFormat_2(tempClause))
-
-                    if (tempClause == [] or len(tempClause) == 0): #Early termination
-                        #print " Terminating early "
-                        return [], False
-
-                    else:
-                        temp_dict = dict()
-                        temp_dict[Clause(tempClause)] = sys.maxint
-
-                        if (len(tempClause) == 2 and self.isSelfCompliment(tempClause)):
-                            #print " Ignore because it evaluates to True always"
-                            pass
-
-                        elif (self.isSubset(temp_dict, resolvedClauses)):
-                            pass
-                            #print " Already present in resolved clauses"
-                        else:
-                            #print " Adding is resolvedClauses"
-                            global GLOBAL_CLAUSE_COUNT
-                            GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
-                            resolvedClauses[Clause(tempClause)] = GLOBAL_CLAUSE_COUNT
-
-        return resolvedClauses, True #don't add ci and cj in resolvedClauses if nothing is common between them
-
-    def applyResolution(self):
-        new = dict()
-        while True:
-            n = len(self.setOfClause.items())
-            pairs = [(self.setOfClause.items()[i][0], self.setOfClause.items()[j][0]) for i in range(n) for j in range(i+1, n)]
-
-            resolvedClauses = dict()
-            for (ci, cj) in pairs:
-                resolvents, result = self.pl_resolve(ci, cj, resolvedClauses)
-                if not( result) :
-                    print " PHI FOUND. RETURNING FALSE"
-                    return False
-                if (len(new.keys()) == 0):
-                    new = resolvents
-                else:
-                    new.update(resolvents)
-
-            print "Looped through all pairs"
-
-            if(self.isSubset(new, self.setOfClause)):
-                print " SUBSET FOUND. WE ARE IN LOOP. RETURNING TRUE"
-                return True
+        for literal in self.literals:
+            sym, positive = literal.inspect() #This will return a literal and its value
+            if sym in model:
+                if model[sym] == positive:
+                    return None, None
+            elif P:
+                return None, None
             else:
-                print " Updating set of clause"
-                self.setOfClause = self.merge(self.setOfClause, new)
-                #print " After Updating set of clause for next iteration "
-                displayCNF(self.setOfClause)
-                print "==================End Display============="
+                P, value = sym, positive
+        return P, value
 
-    def isMatch(self, cA, cB):
+class DPLL:
+    def __init__(self):
+        #self.knowledgeBase = cnfKB
+        pass
 
-        list1 = cA.clauses
-        list2 = cB.clauses
+    def getSymbols(self, knowledgeBase):
+        result = set() #It will be a dictionary of Literal and value
 
-        if (len(list1) != len(list2)):
-            return False
+        for _c in knowledgeBase:
+            target = _c.prop_clause()
+            target = set(filter(lambda x: x not in result and x.getCompliment() not in result, target))
+            result.update(target)
+        return result
 
-        difference = set(list1) - set(list2)
+    def find_unit_symbol(self, clauses, model): # A clause which has just one literal
+        for clause in clauses:
+            P, value = clause.unit_clause_assign(model)
 
-        if (len(difference) == 0):
-            return True
-        return False
+            if P: #Return symbol that is a literal and its value
+                return P, value
+        return None, None
 
-    def merge(self, dictionaryOfClause, new):
-        resultantDictionary = copy.copy(dictionaryOfClause)
+    """
+        pure_clause is Literal and pure_clause_value is the value of Literal.
+    """
+    def extend(self, model, pure_clause, pure_clause_value):
+        #logging.debug("Old model was : " + str(model))
+        new_model = copy.copy(model)
+        new_model[pure_clause] = pure_clause_value
+        #logging.debug("Updated model is : " + str(new_model))
+        return new_model
 
-        for _blockNew, _valNew in new.items():
-            found = False
-            for _blockold, _valold in dictionaryOfClause.items():
+    """
+        Will return a Literal and its Value
+    """
+    def find_pure_symbol(self, symbols, clauses):
 
-                if(self.isMatch(_blockNew, _blockold)):
-                    found=True
-                    break
+        for sym in symbols:
+            found_pos, found_neg = False, False
 
-            if (found == True):
-                continue #Go to next block, #already exists do nothing to resultantDictionary
-            else:
-                resultantDictionary[_blockNew] = _valNew
-        return resultantDictionary
+            for clause in clauses:
+                if not found_pos and clause.contains_symbol(sym):
+                    found_pos = True
+                if not found_neg and clause.contains_symbol(sym.getCompliment()):
+                    found_neg = True
 
-    def isSubset(self, ClauseSetA, ClauseSetKB): #If each item of ClauseSetA is already present in ClauseSetKB
+            if found_pos != found_neg:
+                return sym, found_pos #Could be found ~A or A
+        return None, None
 
-        found = False
-        length=len(ClauseSetA.items()) #these many number of blocks should match
-        count = 0;
+    """
+        If this code is called if call to pure clause is successful
+        then this will be definitely be true becuase this literal will certainly be there
+        Its compliment is not possible hence it is okay.
+    """
+    def removeClause(self, symbols, literal): #symbols is a list of literals
+        #logging.debug("Request received to delete: " + str(literal) + " from symbols : " + str(symbols))
+        if (literal in symbols):
+            symbols.remove(literal)
+        else:
+            symbols.remove(literal.getCompliment())
+        return symbols
 
-        for _clauseSetA, valA in ClauseSetA.items():
+    def dpll_satisfiable(self, cnfKB):
+        symbols=self.getSymbols(cnfKB)
+        return self.dpll(cnfKB, symbols, {})
 
-            found = False
-            for blockKB, valBR in ClauseSetKB.items():
+    def dpll(self, clauses, symbols, model):
+        unknown_clauses = []
 
-                if (self.isMatch(_clauseSetA, blockKB)):
-                    found=True
-                    break
-            if (found == True): #Not a subset, More clauses to go to compare
-                count = count + 1
-                continue
-            else:
+        #logging.debug("Starting DPLL with clauses : " + str(stringCNF(clauses)))
+        #logging.debug("starting with set of symbols : " + str(symbols))
+
+        for clause in clauses:
+            val=clause.pl_true(model)
+            ##logging.debug("The value is :" + str(val))
+
+            if val is False:
+                #logging.debug("I am exiting..becuase of clause : " + str(clause) + " value = " + str(val))
                 return False
-        if (found == True and count == length):
-            return True
-        return False
 
-def displayCNF(setOfClauses):
+            if val is not True:
+                unknown_clauses.append(clause)
 
-    for clause, value in sorted(setOfClauses.items(), key=lambda x: x[1]):
-        firstRecord = True
-        result = ""
-        for _c in clause.clauses:
-            if (firstRecord):
-                result += _c.formattedString()
-                firstRecord=False
-            else:
-                result += ("V " + _c.formattedString())
-        print result
+        if not unknown_clauses:
+            #logging.debug("The RESULT found since length of unknown clauses is zero " + str(model))
+            return model
 
-def  onePersonOneTable(person, tables):
+        #logging.debug("Unknown clauses is :  " + str(stringCNF(unknown_clauses)))
 
-    global GLOBAL_CLAUSE_COUNT
-    GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
+        pure_clause, pure_clause_value = self.find_pure_symbol(symbols, unknown_clauses)
+        if pure_clause is not None:
+            #logging.debug("Pure Clause found : " + str(pure_clause))
+            return self.dpll(clauses, self.removeClause(symbols, pure_clause), self.extend(model, pure_clause, pure_clause_value))
 
+        unit_clause, unit_clause_value = self.find_unit_symbol(clauses, model)
+        if unit_clause is not None:
+            #logging.debug("Unit Clause found : " + str(unit_clause) + " with value = " + str(unit_clause_value))
+            return self.dpll(clauses, self.removeClause(symbols, unit_clause), self.extend(model, unit_clause, unit_clause_value))
+
+        if not symbols:
+            #logging.debug("Capture exception here...exiting")
+            exit()
+        symbols = list(symbols)
+        P, symbols = symbols[0], set(symbols[1:])
+        return (self.dpll(clauses, symbols, self.extend(model, P, True)) or
+            self.dpll(clauses, symbols, self.extend(model, P, False)))
+
+
+def onePersonOneTable(person, tables):
+
+    result = [] #list<Clause>
     for i in range(0, person):
         onePersonAtLeastOneTableClause = list()
 
         for j in range(0, tables):
             onePersonAtLeastOneTableClause.append(Literal(i, j, True))
 
-        setOfClauses[Clause(onePersonAtLeastOneTableClause)] = GLOBAL_CLAUSE_COUNT
+        result.append(Clause(onePersonAtLeastOneTableClause))
 
         for j in range(0, tables):
             for k in range(j+1, tables):
@@ -394,7 +427,8 @@ def  onePersonOneTable(person, tables):
                 onePersonAtMaxOneTableClause.append(literal1)
                 onePersonAtMaxOneTableClause.append(literal2)
 
-                setOfClauses[Clause(onePersonAtMaxOneTableClause)] =  GLOBAL_CLAUSE_COUNT
+                result.append(Clause(onePersonAtMaxOneTableClause))
+    return result
 
 def getRelation(relationships, relation):
     relation = list(filter(lambda x: x[4] == relation, relationships))
@@ -407,26 +441,25 @@ def getRelation(relationships, relation):
 def enemiesGenerator(relationships, tables):
     en = getRelation(relationships, 'E')
 
-    global GLOBAL_CLAUSE_COUNT
+    result = []
     for it in en:
-        GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
         for i in range(0, tables):
             enemyClause = Clause([])
 
             literal1 = Literal(it[0], i, False)
             literal2 = Literal(it[1], i, False)
 
-            enemyClause.clauses.append(literal1)
-            enemyClause.clauses.append(literal2)
+            enemyClause.literals.append(literal1)
+            enemyClause.literals.append(literal2)
 
-            setOfClauses[enemyClause] = GLOBAL_CLAUSE_COUNT
+            result.append(enemyClause)
+    return result
 
 def friendsGenerator(relationships, tables):
     friends = getRelation(relationships, 'F')
 
-    global GLOBAL_CLAUSE_COUNT
+    result = []
     for it in friends:
-        GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
         for i in range(0, tables):
             friendClause1 = Clause([])
             friendClause2 = Clause([])
@@ -434,25 +467,60 @@ def friendsGenerator(relationships, tables):
             literal1 = Literal(it[0], i, True)
             literal2 = Literal(it[1], i, False)
 
-            friendClause1.clauses.append(literal1)
-            friendClause1.clauses.append(literal2)
+            friendClause1.literals.append(literal1)
+            friendClause1.literals.append(literal2)
 
             literal3 = Literal(it[0], i, False)
             literal4 = Literal(it[1], i, True)
 
-            friendClause2.clauses.append(literal3)
-            friendClause2.clauses.append(literal4)
+            friendClause2.literals.append(literal3)
+            friendClause2.literals.append(literal4)
 
-            setOfClauses[friendClause1] = GLOBAL_CLAUSE_COUNT
+            result.append(friendClause1)
 
             #GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
-            setOfClauses[friendClause2] = GLOBAL_CLAUSE_COUNT
+            result.append(friendClause2)
+    return result
 
 def convertToCNF(relationships, M, N):
 
-    onePersonOneTable(M, N)
-    friendsGenerator(relationships, N)
-    enemiesGenerator(relationships, N)
+    cnfKB = [] #List<Clause>
+    result = onePersonOneTable(M, N)
+    cnfKB += result
+    result = friendsGenerator(relationships, N)
+    cnfKB += result
+    result = enemiesGenerator(relationships, N)
+    cnfKB += result
+
+    return cnfKB
+
+def stringCNF(clauses):
+
+    result = ""
+    for clause in clauses:
+        firstRecord = True
+        #result = ""
+        for _c in clause.literals:
+            if (firstRecord):
+                result += _c.formattedString()
+                firstRecord=False
+            else:
+                result += ("V " + _c.formattedString())
+        result = result + "\n"
+    return result
+
+def displayCNF(clauses):
+
+    for clause in clauses:
+        firstRecord = True
+        result = ""
+        for _c in clause.literals:
+            if (firstRecord):
+                result += _c.formattedString()
+                firstRecord=False
+            else:
+                result += ("V " + _c.formattedString())
+        print result
 
 if __name__ == "__main__":
     fileName = "input.txt"
@@ -468,19 +536,28 @@ if __name__ == "__main__":
             N = int(MN[1])
             count = count + 1
         else:
-            relationships.append(line.strip())
+            line = line.strip()
+            if (len(line) == 0):
+                break
+            else:
+                relationships.append(line.strip())
 
-    convertToCNF(relationships, M, N)
+    cnfKB = convertToCNF(relationships, M, N) #List<Clause>
 
-    print " Started with CNF"
-    displayCNF(setOfClauses)
+    #print " Started with CNF"
+    #displayCNF(cnfKB)
 
-    PLResolve = PLResolution(setOfClauses)
-    print PLResolve.applyResolution()
+    _DPLL = DPLL()
+    model = _DPLL.dpll_satisfiable(cnfKB)
 
-    WalkSat = WalkSatAlgo(setOfClauses)
+    _CustomPrint = CustomPrint(model, M, N)
+    _CustomPrint.printModel()
+
+    """
+    WalkSat = WalkSatAlgo(cnfKB)
     model = WalkSat.resolve()
 
+    print " Result found : ", model
     target = open('output.txt', 'w+')
 
     if (model is None):
@@ -489,3 +566,4 @@ if __name__ == "__main__":
         target.write("yes\n")
         WalkSat.displayFinalResult(model, M, N, target)
     target.close()
+    """
