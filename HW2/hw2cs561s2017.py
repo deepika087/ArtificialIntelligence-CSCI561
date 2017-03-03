@@ -1,12 +1,12 @@
 __author__ = 'deepika'
 
 import copy
-import sys
-import random
-#import logging
+import time
+#import random
 
-#logging.basicConfig(filename='dpll_debug.log',level=#logging.DEBUG)
-
+"""
+https://labs.vocareum.com/main/main.php?m=editor&nav=1&asnid=11155&stepid=11156
+"""
 class CustomPrint:
     def __init__(self, model, person, table):
         self.model = model
@@ -113,127 +113,14 @@ class Literal:
         Should work like this
         inspect_literal(P) -> (P, True)
         inspect_literal(~P) -> (P, False)
-        """
+
         if not (self.isNeg): #IsNeg means form is ~A
             return self, True
         return self.getCompliment(), False
-
-class WalkSatAlgo:
-    def __init__(self, cnfKB):
-        self.knowledgeBase = cnfKB #knowledgeBase is a List<Clause>
-
-    #start here
-    def getSymbols(self):
-        result = set() #It will be a dictionary of Literal and value
-
-        for _c in self.knowledgeBase:
-            target = _c.prop_clause()
-            target = set(filter(lambda x: x not in result and x.getCompliment() not in result, target))
-            result.update(target)
-        return result
-
-    def assignRandomValues(self, symbols): #symbols is a set of type <Literal> and this returns dict <Literal, Boolean>
-
-        model = dict()
-        for sym in symbols:
-            model[sym] = random.choice([True, False])
-
-        return model
-
-    """
-    Inputs : clause : Instance of class Clause = List<Literal>
-    """
-    def resolve(self,  p=0.5, max_flips=10000):
-        symbols = self.getSymbols() #Gets symbols from KnowledgeBase which is a List<Clause>
-        #logging.debug("Set of symbols : " + str(symbols))
-        model = self.assignRandomValues(symbols)
-        #logging.debug("Initial model : " + str(model))
-
-        for i in range(max_flips):
-            #logging.debug("------------------Starting iteration : " + str(i + 1) + "with model" + str(model))
-            satisfied, unsatisfied = [], [] #Both of these are List<Clause>
-            for clause in self.knowledgeBase: #This is List<Clause>
-                (satisfied if clause.pl_true(model) else unsatisfied).append(clause)
-            #print " Satisfied : ", satisfied
-            #print " Unsatisfied : ", unsatisfied
-
-            if (len(unsatisfied) == 0):
-                print " Found solution "
-                return model
-            randomClause = random.choice(unsatisfied)
-            if p > random.uniform(0.0, 1.0):
-                sym = random.sample(randomClause.prop_clause(), 1) #this returns a list. Therefore pick first element to be the effective symbol
-                sym = sym[0]
-                sym = sym if sym in model else sym.getCompliment()
-                #logging.debug(" PROBABILITY WILL DECIDE " + str(sym))
-            else:
-                #Flip the symbol that maximizes number of sat clauses
-                def sat_count(sym): #This function flips a literal and computes unsatfied clauses
-                    #print " request for symbol : ", sym
-                    temp_sat, temp_unsat = [], []
-                    model[sym] = not model[sym]
-                    #print " New model = ", model
-                    #count = len([clause for clause in self.setOfClause.keys() if self.pl_true(clause, model)])
-                    for clause in self.knowledgeBase: #This is List<Clause>
-                        (temp_sat if clause.pl_true(model) else temp_unsat).append(clause)
-                    model[sym] = not model[sym]
-
-                    #print " Satisfied : ", temp_sat
-                    #print " UnSatisfied : ", temp_unsat
-
-                    count = len(temp_sat)
-                    #print " For sym ", sym, " count = ", count
-                    return count
-                sym = max(symbols, key=sat_count)
-                #logging.debug("Selected symbol = " + str(sym))
-            model[sym] = not model[sym]
-        return None
-
-    def searchForTable(self, person, model):
-
-        for (k, v) in model.items(): #model is dictionary of Literal, boolean
-            #print "KV = ", k, v
-            if (k.person == person and k.isNeg == True and v == True):
-                #print " Picking Literal : ", k, " for person : ", person + 1
-                return k.table
-            elif (k.person == person and k.isNeg == False and v == False):
-                #print " Picking Literal (False match): ", k, " for person : ", person + 1
-                return k.table
-        return None
-
-    def displayFinalResult(self, model, person, table, target):
-
-        def display_Person_Table(personTable):
-            for (k,v) in personTable.items():
-                target.write(str(k+1) + " " + str(v+1) + "\n")
-
-        personTable = dict()
-
-        for _p in range(0, person):
-            personTable[_p] = None
-
-        tables = set([i for i in range(0, table)])
-        persons = set([i for i in range(0, person)])
-
-        for _p in range(0, person):
-            tbl = self.searchForTable(_p, model)
-            if (tbl is not None):
-                personTable[_p] = tbl
-                tables = tables - set([tbl])
-                persons = persons - set([_p])
-                #print " Person : ", _p, " has been seated on ", tbl
-                #print " Updated tables : ", tables
-
-        if (len(persons) == 0):
-            #print " All person seated."
-            display_Person_Table(personTable)
-        else:
-            #print " Handling the case when not all person were assigned a table"
-            for _p in range(0, person):
-                if (personTable[_p] is None):
-                    personTable[_p] = tables[0]
-                    tables = tables - set([tables[0]])
-            display_Person_Table(personTable)
+        """
+        if (self.isNeg):
+            return self, True
+        return self.getCompliment(), False
 
 class Clause:
     def __init__(self, literals=[]):
@@ -300,7 +187,6 @@ class Clause:
 
 class DPLL:
     def __init__(self):
-        #self.knowledgeBase = cnfKB
         pass
 
     def getSymbols(self, knowledgeBase):
@@ -354,10 +240,9 @@ class DPLL:
         Its compliment is not possible hence it is okay.
     """
     def removeClause(self, symbols, literal): #symbols is a list of literals
-        #logging.debug("Request received to delete: " + str(literal) + " from symbols : " + str(symbols))
         if (literal in symbols):
             symbols.remove(literal)
-        else:
+        elif(literal.getCompliment() in symbols):
             symbols.remove(literal.getCompliment())
         return symbols
 
@@ -368,44 +253,33 @@ class DPLL:
     def dpll(self, clauses, symbols, model):
         unknown_clauses = []
 
-        #logging.debug("Starting DPLL with clauses : " + str(stringCNF(clauses)))
-        #logging.debug("starting with set of symbols : " + str(symbols))
-
         for clause in clauses:
             val=clause.pl_true(model)
-            ##logging.debug("The value is :" + str(val))
 
             if val is False:
-                #logging.debug("I am exiting..becuase of clause : " + str(clause) + " value = " + str(val))
                 return False
 
             if val is not True:
                 unknown_clauses.append(clause)
 
         if not unknown_clauses:
-            #logging.debug("The RESULT found since length of unknown clauses is zero " + str(model))
             return model
-
-        #logging.debug("Unknown clauses is :  " + str(stringCNF(unknown_clauses)))
 
         pure_clause, pure_clause_value = self.find_pure_symbol(symbols, unknown_clauses)
         if pure_clause is not None:
-            #logging.debug("Pure Clause found : " + str(pure_clause))
             return self.dpll(clauses, self.removeClause(symbols, pure_clause), self.extend(model, pure_clause, pure_clause_value))
 
         unit_clause, unit_clause_value = self.find_unit_symbol(clauses, model)
         if unit_clause is not None:
-            #logging.debug("Unit Clause found : " + str(unit_clause) + " with value = " + str(unit_clause_value))
             return self.dpll(clauses, self.removeClause(symbols, unit_clause), self.extend(model, unit_clause, unit_clause_value))
 
         if not symbols:
-            #logging.debug("Capture exception here...exiting")
-            exit()
+            #exit()
+            return False
         symbols = list(symbols)
         P, symbols = symbols[0], set(symbols[1:])
         return (self.dpll(clauses, symbols, self.extend(model, P, True)) or
             self.dpll(clauses, symbols, self.extend(model, P, False)))
-
 
 def onePersonOneTable(person, tables):
 
@@ -430,16 +304,23 @@ def onePersonOneTable(person, tables):
                 result.append(Clause(onePersonAtMaxOneTableClause))
     return result
 
-def getRelation(relationships, relation):
-    relation = list(filter(lambda x: x[4] == relation, relationships))
-    relation_pairs = list()
+def getSpecificRelation(relationships, relation):
+    filteredList = []
 
-    for item in relation:
-        relation_pairs.append((int(item[0])-1, int(item[2])-1))
+    for _input in relationships:
+        _inputTokens = _input.split()
+
+        if (_inputTokens[2] == relation): #Second index will have the actual relationship
+            filteredList.append(_input)
+
+    relation_pairs = list()
+    for item in filteredList:
+        item = item.split()
+        relation_pairs.append((int(item[0])-1, int(item[1])-1))
     return relation_pairs
 
 def enemiesGenerator(relationships, tables):
-    en = getRelation(relationships, 'E')
+    en = getSpecificRelation(relationships, 'E')
 
     result = []
     for it in en:
@@ -456,7 +337,7 @@ def enemiesGenerator(relationships, tables):
     return result
 
 def friendsGenerator(relationships, tables):
-    friends = getRelation(relationships, 'F')
+    friends = getSpecificRelation(relationships, 'F')
 
     result = []
     for it in friends:
@@ -477,8 +358,6 @@ def friendsGenerator(relationships, tables):
             friendClause2.literals.append(literal4)
 
             result.append(friendClause1)
-
-            #GLOBAL_CLAUSE_COUNT = GLOBAL_CLAUSE_COUNT + 1
             result.append(friendClause2)
     return result
 
@@ -494,21 +373,6 @@ def convertToCNF(relationships, M, N):
 
     return cnfKB
 
-def stringCNF(clauses):
-
-    result = ""
-    for clause in clauses:
-        firstRecord = True
-        #result = ""
-        for _c in clause.literals:
-            if (firstRecord):
-                result += _c.formattedString()
-                firstRecord=False
-            else:
-                result += ("V " + _c.formattedString())
-        result = result + "\n"
-    return result
-
 def displayCNF(clauses):
 
     for clause in clauses:
@@ -522,7 +386,7 @@ def displayCNF(clauses):
                 result += ("V " + _c.formattedString())
         print result
 
-if __name__ == "__main__":
+def manageWorkFlow():
     fileName = "input.txt"
     M = N = 0
     count = 0
@@ -543,27 +407,17 @@ if __name__ == "__main__":
                 relationships.append(line.strip())
 
     cnfKB = convertToCNF(relationships, M, N) #List<Clause>
-
-    #print " Started with CNF"
-    #displayCNF(cnfKB)
-
+    displayCNF(cnfKB)
     _DPLL = DPLL()
+
+    #startTime = time.time()
     model = _DPLL.dpll_satisfiable(cnfKB)
+    #print " time taken by main DPLL is : ", time.time() - startTime
 
     _CustomPrint = CustomPrint(model, M, N)
     _CustomPrint.printModel()
 
-    """
-    WalkSat = WalkSatAlgo(cnfKB)
-    model = WalkSat.resolve()
+if __name__ == "__main__":
 
-    print " Result found : ", model
-    target = open('output.txt', 'w+')
+    manageWorkFlow()
 
-    if (model is None):
-        target.write("no")
-    else:
-        target.write("yes\n")
-        WalkSat.displayFinalResult(model, M, N, target)
-    target.close()
-    """

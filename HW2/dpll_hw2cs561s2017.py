@@ -4,6 +4,11 @@ import copy
 import sys
 import random
 import logging
+import time
+
+"""
+https://labs.vocareum.com/main/main.php?m=editor&nav=1&asnid=11155&stepid=11156
+"""
 
 logging.basicConfig(filename='dpll_debug.log',level=logging.DEBUG)
 
@@ -14,7 +19,7 @@ class CustomPrint:
         self.table = table
 
     def printModel(self):
-        target = open('output.txt', 'w+')
+        target = open('output_dpll.txt', 'w+')
 
         if (self.model is None or self.model == False or not isinstance(self.model, dict) or len(self.model) == 0):
             target.write("no")
@@ -113,8 +118,13 @@ class Literal:
         Should work like this
         inspect_literal(P) -> (P, True)
         inspect_literal(~P) -> (P, False)
+
+        if not (self.isNeg): #IsNeg True means form is A
+            return self, True
+        return self.getCompliment(), False
         """
-        if not (self.isNeg): #IsNeg means form is ~A
+
+        if (self.isNeg):
             return self, True
         return self.getCompliment(), False
 
@@ -289,6 +299,7 @@ class Clause:
 
         for literal in self.literals:
             sym, positive = literal.inspect() #This will return a literal and its value
+            #logging.debug("Inspecting literal : " + str(literal) + " returned " + str(sym) + " " + str(positive))
             if sym in model:
                 if model[sym] == positive:
                     return None, None
@@ -314,6 +325,7 @@ class DPLL:
 
     def find_unit_symbol(self, clauses, model): # A clause which has just one literal
         for clause in clauses:
+            #logging.debug("------------------------------")
             P, value = clause.unit_clause_assign(model)
 
             if P: #Return symbol that is a literal and its value
@@ -354,10 +366,10 @@ class DPLL:
         Its compliment is not possible hence it is okay.
     """
     def removeClause(self, symbols, literal): #symbols is a list of literals
-        logging.debug("Request received to delete: " + str(literal) + " from symbols : " + str(symbols))
+        logging.debug("Request received to delete " + str(literal) + " from " + str(symbols))
         if (literal in symbols):
             symbols.remove(literal)
-        else:
+        elif(literal.getCompliment() in symbols):
             symbols.remove(literal.getCompliment())
         return symbols
 
@@ -368,7 +380,7 @@ class DPLL:
     def dpll(self, clauses, symbols, model):
         unknown_clauses = []
 
-        logging.debug("Starting DPLL with clauses : " + str(stringCNF(clauses)))
+       # logging.debug("Starting DPLL with clauses : " + str(stringCNF(clauses)))
         logging.debug("starting with set of symbols : " + str(symbols))
 
         for clause in clauses:
@@ -376,14 +388,14 @@ class DPLL:
             #logging.debug("The value is :" + str(val))
 
             if val is False:
-                logging.debug("I am exiting..becuase of clause : " + str(clause) + " value = " + str(val))
+                #logging.debug("I am exiting..because of clause : " + str(clause) + " value = " + str(val))
                 return False
 
             if val is not True:
                 unknown_clauses.append(clause)
 
         if not unknown_clauses:
-            logging.debug("The RESULT found since length of unknown clauses is zero " + str(model))
+            logging.debug("The RESULT found since length of unknown clauses is zero ")
             return model
 
         logging.debug("Unknown clauses is :  " + str(stringCNF(unknown_clauses)))
@@ -392,19 +404,16 @@ class DPLL:
         if pure_clause is not None:
             logging.debug("Pure Clause found : " + str(pure_clause))
             return self.dpll(clauses, self.removeClause(symbols, pure_clause), self.extend(model, pure_clause, pure_clause_value))
-        else:
-            logging.debug("No pure clause found")
 
         unit_clause, unit_clause_value = self.find_unit_symbol(clauses, model)
         if unit_clause is not None:
             logging.debug("Unit Clause found : " + str(unit_clause) + " with value = " + str(unit_clause_value))
             return self.dpll(clauses, self.removeClause(symbols, unit_clause), self.extend(model, unit_clause, unit_clause_value))
-        else:
-            logging.debug("No unit clause found.")
 
         if not symbols:
             logging.debug("Capture exception here...exiting")
-            exit()
+            #exit()
+            return False
         symbols = list(symbols)
         P, symbols = symbols[0], set(symbols[1:])
         return (self.dpll(clauses, symbols, self.extend(model, P, True)) or
@@ -548,26 +557,13 @@ if __name__ == "__main__":
 
     cnfKB = convertToCNF(relationships, M, N) #List<Clause>
 
-    #print " Started with CNF"
-    #displayCNF(cnfKB)
+    print " Started with CNF"
+    displayCNF(cnfKB)
 
+    startTime = time.time()
     _DPLL = DPLL()
     model = _DPLL.dpll_satisfiable(cnfKB)
+    print "DPLL Time take =  {}".format(str(time.time() - startTime))
 
     _CustomPrint = CustomPrint(model, M, N)
     _CustomPrint.printModel()
-
-    """
-    WalkSat = WalkSatAlgo(cnfKB)
-    model = WalkSat.resolve()
-
-    print " Result found : ", model
-    target = open('output.txt', 'w+')
-
-    if (model is None):
-        target.write("no")
-    else:
-        target.write("yes\n")
-        WalkSat.displayFinalResult(model, M, N, target)
-    target.close()
-    """

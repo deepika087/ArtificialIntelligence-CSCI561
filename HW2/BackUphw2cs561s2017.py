@@ -1,5 +1,6 @@
 __author__ = 'deepika'
 
+#use this file to run walksat and logs will go in walksat.log
 """
 Vocareum Link
 https://labs.vocareum.com/main/main.php?m=editor&nav=1&asnid=11155&stepid=11156
@@ -12,7 +13,7 @@ import logging
 import time
 import concurrent.futures
 
-logging.basicConfig(filename='example.log',level=logging.DEBUG)
+logging.basicConfig(filename='walksat_debug.log',level=logging.DEBUG)
 
 setOfClauses = dict()
 GLOBAL_CLAUSE_COUNT = 0
@@ -43,7 +44,7 @@ class Literal:
         return False
 
     def __repr__(self):
-        return 'X{}{}'.format(self.person+1, self.table+1) if self.isNeg else  '~X{}{}'.format(self.person+1, self.table+1)
+        return 'X{},{}'.format(self.person+1, self.table+1) if self.isNeg else  '~X{},{}'.format(self.person+1, self.table+1)
         #return '({},{},{})'.format(self.person, self.table, self.isNeg)
 
     def __hash__(self):
@@ -103,12 +104,12 @@ class WalkSatAlgo:
 
     def resolve(self,  p=0.5, max_flips=10000):
         symbols = self.getSymbols(self.setOfClause.keys()) #symbols is a dict of Literal --> Value
-        #print symbols
+        logging.debug(symbols)
         model = self.assignRandomValues(symbols)
-        #print model
+        logging.debug(model)
 
         for i in range(max_flips):
-            #print "------------------Starting iteration : ", i + 1, "with model", model
+            logging.debug("------------------Starting iteration : " +str(i + 1)) # + "with model" + str(model)
             satisfied, unsatisfied = [], [] #Both of these are List<Clause>
             for _c in self.setOfClause.keys(): #This is List<Clause>
                 (satisfied if self.pl_true(_c, model) else unsatisfied).append(_c)
@@ -142,7 +143,7 @@ class WalkSatAlgo:
                     #print " For sym ", sym, " count = ", count
                     return count
                 sym = max(symbols, key=sat_count)
-                #print "Selected = ", sym
+                #logging.debug("Selected = " + str(sym))
             model[sym] = not model[sym]
 
         return None
@@ -598,12 +599,14 @@ if __name__ == "__main__":
 
 
     PLResolve = PLResolution(setOfClauses)
-    print PLResolve.applyResolution()
+    #print PLResolve.applyResolution()
 
+    startTime = time.time()
     WalkSat = WalkSatAlgo(setOfClauses)
     model = WalkSat.resolve()
+    print "WalkSat Time take =  {}".format(str(time.time() - startTime))
 
-    target = open('output.txt', 'w+')
+    target = open('output_walksat.txt', 'w+')
 
     if (model is None):
         target.write("no")

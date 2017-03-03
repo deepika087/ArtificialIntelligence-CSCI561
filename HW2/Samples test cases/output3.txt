@@ -1,0 +1,26 @@
+yes
+1 1
+2 2
+3 3
+4 4
+5 5
+6 6
+7 7
+8 8
+
+{~X610: True, ~X58: False, ~X24: True, ~X84: False, ~X67: True, ~X39: True, ~X89: True, ~X710: True, ~X32: True, ~X57: True, ~X12: True, ~X73: True, ~X27: True, ~X62: True, ~X48: True, ~X36: True, ~X14: True, ~X69: True, ~X51: True, ~X23: True, ~X85: True, ~X42: True, ~X510: True, ~X44: True, ~X310: True, X31: True, ~X87: True, ~X77: True, ~X55: True, ~X41: True, ~X74: True, ~X26: True, ~X83: True, ~X47: True, ~X15: True, ~X11: True, ~X64: True, ~X52: True, ~X22: True, ~X75: True, ~X65: True, X37: False, ~X43: True, ~X61: True, ~X82: True, ~X56: True, ~X33: True, X71: False, ~X25: True, ~X88: True, ~X410: False, X34: False, ~X210: True, ~X78: True, ~X21: True, ~X19: True, ~X76: False, ~X46: True, X38: False, ~X81: True, ~X79: True, ~X66: True, ~X72: True, ~X68: True, ~X63: False, ~X53: True, ~X13: True, ~X49: True, ~X17: True, ~X29: False, ~X86: True, ~X810: True, ~X28: True, ~X110: True, ~X54: True, ~X18: False, ~X59: True, ~X45: True, X35: False, ~X16: True}
+
+Left ~ and right False
+
+X 18
+X 29
+X 31
+X 58
+X 84
+X 4 10
+X 76
+X 63
+
+For all person search for clauses such that Literal.person = person
+then look for literal where isNeg == True and dict Value = True
+If no such literal found search where isNeg == False
