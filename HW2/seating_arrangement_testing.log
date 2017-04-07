@@ -1,0 +1,34 @@
+DEBUG:root:Will run for 7 testcases
+DEBUG:root:Will run for 7 testcases
+DEBUG:root:Number of persons, tables and relations are 4, 6, 2
+DEBUG:root:Pass.picked same persons
+DEBUG:root:Pass.picked same persons
+DEBUG:root:Relationships : [3 4 E, 4 2 F]
+DEBUG:root:.........Calling the hw file..............
+DEBUG:root:.........Ending call to the hw file..............
+DEBUG:root:Fresh out of oven literals : {1: 2, 2: 3, 3: 2, 4: 3}
+DEBUG:root:The list of literal is {1: 2, 2: 3, 3: 2, 4: 3}
+DEBUG:root: Result recieved : True
+DEBUG:root:=============================================================================
+DEBUG:root:Oops missed one
+DEBUG:root:Oops missed one
+DEBUG:root:Number of persons, tables and relations are 5, 4, 3
+DEBUG:root:Pass.picked same persons
+DEBUG:root:Pass.picked same persons
+DEBUG:root:Pass.Didn't like the relation4 1 F
+DEBUG:root:Relationships : [4 1 F, 2 5 E, 2 1 E]
+DEBUG:root:.........Calling the hw file..............
+DEBUG:root:.........Ending call to the hw file..............
+DEBUG:root:Fresh out of oven literals : {1: 2, 2: 3, 3: 2, 4: 2, 5: 4}
+DEBUG:root:The list of literal is {1: 2, 2: 3, 3: 2, 4: 2, 5: 4}
+DEBUG:root: Result recieved : True
+DEBUG:root:=============================================================================
+DEBUG:root:Number of persons, tables and relations are 5, 2, 1
+DEBUG:root:Relationships : [2 1 E]
+DEBUG:root:.........Calling the hw file..............
+DEBUG:root:.........Ending call to the hw file..............
+DEBUG:root:Fresh out of oven literals : {1: 2, 2: 1, 3: 1, 4: 1, 5: 2}
+DEBUG:root:The list of literal is {1: 2, 2: 1, 3: 1, 4: 1, 5: 2}
+DEBUG:root: Result recieved : True
+DEBUG:root:=============================================================================
+DEBUG:root:Will run for 7 testcases

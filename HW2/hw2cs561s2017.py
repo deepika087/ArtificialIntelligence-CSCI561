@@ -410,9 +410,9 @@ def manageWorkFlow():
     displayCNF(cnfKB)
     _DPLL = DPLL()
 
-    #startTime = time.time()
+    startTime = time.time()
     model = _DPLL.dpll_satisfiable(cnfKB)
-    #print " time taken by main DPLL is : ", time.time() - startTime
+    print " time taken by main DPLL is : ", time.time() - startTime
 
     _CustomPrint = CustomPrint(model, M, N)
     _CustomPrint.printModel()

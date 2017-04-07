@@ -26,7 +26,7 @@ class Clause:
                 result += _c.formattedString()
                 firstRecord=False
             else:
-                result += ("V " + _c.formattedString())
+                result += ("V " +   _c.formattedString())
         return result
 
     def prop_clause(self): #This will function will receive a Clause as input and it will return symbols in that Clause
