@@ -3,9 +3,7 @@ __author__ = 'deepika'
 import copy
 import math
 import sys
-import time
-import logging
-logging.basicConfig(filename='bayesian.log',level=logging.DEBUG)
+
 def my_round(data, precise):
 
     sign = True if data < 0 else False
@@ -18,50 +16,6 @@ def my_round(data, precise):
     num = num/10
     result = num/(10.0**(precise)) + int(updated_data)
     return -result if sign else result
-
-class Calculations:
-
-    @staticmethod
-    def computeProbability(queries, table_data):
-        logging.debug("Queries : " + str(queries))
-        if (len(queries) == 0):
-            return 1
-
-        parentFound=True
-
-        for key in queries.keys():
-            for parent in table_data[key].parents:
-                if not parent in queries.keys():
-                    parentFound = False
-                    break
-            if (not parentFound):
-                break
-        if parentFound:
-            result = 1
-            for key in queries.keys():
-                if (table_data[key].prob_table is None):
-                    continue
-                index = 0
-                #print queries
-                for parent in table_data[key].parents:
-                    index = (index<<1) + queries[parent]
-                result *= table_data[key].prob_table[index] if queries[key] else (1 - table_data[key].prob_table[index])
-                #print " Result before exiting recursion for node : ", key, " is ", result
-            return result
-
-        for key in queries.keys():
-            #Add all parents in queries.
-            for parent in table_data[key].parents:
-                if (parent not in queries.keys()):
-                    queries0 = copy.copy(queries)
-                    queries0.update({parent:0})
-
-                    queries1 = copy.copy(queries)
-                    queries1.update({parent:1})
-
-                    result = Calculations.computeProbability(queries0, table_data) + Calculations.computeProbability(queries1, table_data)
-                    #print " Result after recursion for node : ", key, " is ", result
-        return result
 
 class Parse:
 
@@ -161,13 +115,11 @@ def contraCheck(queries, conditions):
 def handleProbability(queries, conditions, table_data):
     if (contraCheck(queries, conditions)):
         return 0.0
-
     p = 0.0
     if (len(conditions) == 0): #probability of the for P(A, B, C) or P(A) then do enumeration_all directly
         p = enumeration_all(table_data['all_vars'], queries, table_data)
     else:
         p = enumeration_ask(queries, conditions, table_data)
-
     return p
 
 def enumeration_all(queries, conditions, table_data):
@@ -184,7 +136,6 @@ def enumeration_all(queries, conditions, table_data):
         ey_true[Y] = 1
         ey_false = copy.copy(conditions)
         ey_false[Y] = 0
-
         return YNode.p(1, conditions) * enumeration_all(queries[1:], ey_true, table_data) + YNode.p(0, conditions) * enumeration_all(queries[1:], ey_false, table_data)
 
 # This function will be called when probability is of the form P(A,B|C,D)
@@ -233,7 +184,7 @@ def handleMaximumUtility(utility, queries, conditions, table):
 
     return ' '.join(result), maxEU
 
-#Nodes not required becuase all we have to send is + - - and so on
+# Nodes not required becuase all we have to send is + - - and so on
 # not for which particular nodes
 def indexToNodes(index, length):
     if index > (2**length-1):
