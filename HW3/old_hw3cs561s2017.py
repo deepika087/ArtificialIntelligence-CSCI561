@@ -1,11 +1,15 @@
 __author__ = 'deepika'
 
+#This code will not run for very large networks such as input09.txt
+#However it is good start since algorthm if clear in this file than the one given in AIMA
 import copy
 import math
 import sys
 import time
 import logging
+
 logging.basicConfig(filename='bayesian.log',level=logging.DEBUG)
+
 def my_round(data, precise):
 
     sign = True if data < 0 else False
