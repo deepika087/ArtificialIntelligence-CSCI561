@@ -32,3 +32,32 @@ DEBUG:root:The list of literal is {1: 2, 2: 1, 3: 1, 4: 1, 5: 2}
 DEBUG:root: Result recieved : True
 DEBUG:root:=============================================================================
 DEBUG:root:Will run for 7 testcases
+DEBUG:root:Will run for 7 testcases
+DEBUG:root:Number of persons, tables and relations are 9, 3, 8
+DEBUG:root:Pass.picked same persons
+DEBUG:root:Relationships : [4 2 F, 1 9 E, 2 5 F, 3 9 E, 1 4 E, 6 3 E, 2 7 F, 7 3 F]
+DEBUG:root:.........Calling the hw file..............
+DEBUG:root:.........Ending call to the hw file..............
+DEBUG:root:Fresh out of oven literals : {1: 2, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 3, 8: 1, 9: 1}
+DEBUG:root:The list of literal is {1: 2, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 3, 8: 1, 9: 1}
+DEBUG:root: Result recieved : True
+DEBUG:root:=============================================================================
+DEBUG:root:Number of persons, tables and relations are 6, 7, 1
+DEBUG:root:Relationships : [6 3 E]
+DEBUG:root:.........Calling the hw file..............
+DEBUG:root:.........Ending call to the hw file..............
+DEBUG:root:Fresh out of oven literals : {1: 2, 2: 3, 3: 2, 4: 1, 5: 7, 6: 7}
+DEBUG:root:The list of literal is {1: 2, 2: 3, 3: 2, 4: 1, 5: 7, 6: 7}
+DEBUG:root: Result recieved : True
+DEBUG:root:=============================================================================
+DEBUG:root:Number of persons, tables and relations are 9, 6, 4
+DEBUG:root:Relationships : [1 3 E, 3 9 F, 8 2 F, 7 1 E]
+DEBUG:root:.........Calling the hw file..............
+DEBUG:root:.........Ending call to the hw file..............
+DEBUG:root:Fresh out of oven literals : {1: 2, 2: 4, 3: 1, 4: 1, 5: 6, 6: 2, 7: 3, 8: 4, 9: 1}
+DEBUG:root:The list of literal is {1: 2, 2: 4, 3: 1, 4: 1, 5: 6, 6: 2, 7: 3, 8: 4, 9: 1}
+DEBUG:root: Result recieved : True
+DEBUG:root:=============================================================================
+DEBUG:root:Number of persons, tables and relations are 7, 10, 5
+DEBUG:root:Relationships : [1 2 F, 3 5 E, 7 1 F, 7 5 F, 5 1 E]
+DEBUG:root:.........Calling the hw file..............

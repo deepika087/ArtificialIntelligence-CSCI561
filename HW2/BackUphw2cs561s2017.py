@@ -13,7 +13,7 @@ import logging
 import time
 import concurrent.futures
 
-logging.basicConfig(filename='walksat_debug.log',level=logging.DEBUG)
+ logging.basicConfig(filename='walksat_debug.log',level=logging.DEBUG)
 
 setOfClauses = dict()
 GLOBAL_CLAUSE_COUNT = 0

@@ -159,53 +159,28 @@ def contraCheck(queries, conditions):
     return False
 
 def handleProbability(queries, conditions, table_data):
+    logging.debug("-===================Starting Probability======================-")
     if (contraCheck(queries, conditions)):
-        return 0.0
-
-    p = 0.0
-    if (len(conditions) == 0): #probability of the for P(A, B, C) or P(A) then do enumeration_all directly
-        p = enumeration_all(table_data['all_vars'], queries, table_data)
-    else:
-        p = enumeration_ask(queries, conditions, table_data)
-
-    return p
-
-def enumeration_all(queries, conditions, table_data):
-    if not queries:
-        return 1.0
-    Y, rest = queries[0], queries[1:]
-    YNode = table_data[Y]
-
-    #Taken from AIMA pseudo code as given on github
-    if Y in conditions.keys():
-        return YNode.p(conditions[Y], conditions) * enumeration_all(queries[1:], conditions, table_data)
-    else:
-        ey_true = copy.copy(conditions)
-        ey_true[Y] = 1
-        ey_false = copy.copy(conditions)
-        ey_false[Y] = 0
-
-        return YNode.p(1, conditions) * enumeration_all(queries[1:], ey_true, table_data) + YNode.p(0, conditions) * enumeration_all(queries[1:], ey_false, table_data)
-
-# This function will be called when probability is of the form P(A,B|C,D)
-# in which case compute P(A,B,C,D)/P(C,D). Hence numerator as well as denominator will call
-# enumeration_all individually.
-def enumeration_ask(queries, conditions, table_data):
+        return 0
 
     queries.update(conditions)
-    return enumeration_all(table_data['all_vars'], queries, table_data)/enumeration_all(table_data['all_vars'], conditions, table_data)
+    numerator = Calculations.computeProbability(queries, table_data)
+    denominator = Calculations.computeProbability(conditions, table_data)
+    logging.debug("-===================Ending Probability======================-")
+    #print " Prob0 : ", numerator, " prob1 : ", denominator
+    return numerator/denominator
 
 def relevantNodes(parents, i):
-    length, re_list = len(parents), list(parents)
-    temp = i
-    re_list.reverse()
-    if (2**length-1) < i:
-        return None
-    result = dict()
-    for key in re_list:
-        result[key] = temp%2
-        temp = temp /2
-    return result
+        length, re_list = len(parents), list(parents)
+        temp = i
+        re_list.reverse()
+        if (2**length-1) < i:
+            return None
+        result = dict()
+        for key in re_list:
+            result[key] = temp%2
+            temp = temp /2
+        return result
 
 def handleUtility(utility, queries, conditions, table_data):
 
@@ -244,7 +219,6 @@ def indexToNodes(index, length):
         result.append('+' if flag else '-')
         tmp = tmp - flag* 2**i
     return result
-
 class Node(object):
 
     def __init__(self, name, parents, prob_table):
@@ -289,18 +263,7 @@ class Node(object):
     def __str__(self):
         return self.__repr__()
 
-    def p(self, sign, evidence):
-        if (self.prob_table is None):
-            return 1.0
 
-        index = 0
-        for parent in self.parents:
-            index = (index<<1) + evidence[parent]
-
-        if (sign == 1):
-            return self.prob_table[index]
-        else:
-            return 1 - self.prob_table[index]
 
 class KB:
 
@@ -309,7 +272,6 @@ class KB:
         table = dict()
         data = []
         count = 0
-        table['all_vars'] = [] #Created this array because table.keys() returns variables such that child occurs before parent
         for line in table_lines:
             line = line.strip()
             count = count + 1
@@ -321,24 +283,32 @@ class KB:
                 node = Node.parse(data)
                 data = []
                 table[node.name] = node
-                table['all_vars'].append(node.name)
         return table
 
-def main(fileName):
+if __name__ == "__main__":
+    #for fileName in ['input01.txt', 'input02.txt', 'input03.txt', 'input04.txt', 'input05.txt', 'input06.txt']:
+    fileName='input.txt'
     table_lines, problems, utility = Parse.parseLines(fileName)
+    table = KB.parse(table_lines) #Dictionary of node and corresponding Data
+    print table
 
-    table = KB.parse(table_lines)
     problems = Problem.parse(problems)
+    print problems
+
     utility = Node.parse(utility)
+    print utility
 
     target = open('output.txt', 'w+')
-
+    start = time.time()
     for problem in problems:
         if (problem.type == 'P'):
+            print "Working on P"
             result = handleProbability(problem.queries, problem.conditions, table)
-            result = my_round(result, 2)
+            result = int(( result * 100 ) + 0.5) / float(100)
             target.write(str(format(result, '.2f')) + "\n")
+            #print type(result)
         elif (problem.type == 'EU'):
+            print "Working on EU"
             result = handleUtility(utility, problem.queries, problem.conditions, table)
             result = int(( result * 100 ) + 0.5) / float(100)
             format(result, '.2f')
@@ -347,6 +317,7 @@ def main(fileName):
             else:
                 target.write( str(int(math.ceil(result))) + "\n")
         else:
+            print "Working on MEU"
             resultTuple =  handleMaximumUtility(utility, problem.queries, problem.conditions, table)
             result = resultTuple[1]
             result = int(( result * 100 ) + 0.5) / float(100)
@@ -356,7 +327,4 @@ def main(fileName):
             else:
                 result = int(math.ceil(result))
             target.write( resultTuple[0] + " " + str(result) + "\n" )
-
-if __name__ == "__main__":
-    fileName='input.txt'
-    main(fileName)
+    print "completed", time.time() - start
