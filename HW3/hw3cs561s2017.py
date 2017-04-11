@@ -88,10 +88,10 @@ class Problem(object):
                 line = line[4:len(line)-1]
                 task_type = 'MEU'
 
-            if (' | ' in line):
-                line = line.split(' | ')
-                query = line[0].split(', ')
-                conditions = line[1].split(', ')
+            if ('|' in line):
+                line = line.split('|')
+                query = line[0].strip().split(', ')
+                conditions = line[1].strip().split(', ')
             else:
                 query = line.split(', ')
                 conditions = []
@@ -144,7 +144,52 @@ def enumeration_all(queries, conditions, table_data):
 def enumeration_ask(queries, conditions, table_data):
 
     queries.update(conditions)
-    return enumeration_all(table_data['all_vars'], queries, table_data)/enumeration_all(table_data['all_vars'], conditions, table_data)
+    getValidVars(queries, table_data)
+
+    #numerator = enumeration_all(table_data['all_vars'], queries, table_data)
+    #denominator = enumeration_all(table_data['all_vars'], conditions, table_data)
+
+    numerator = enumeration_all(getValidVars(queries, table_data), queries, table_data)
+    denominator = enumeration_all(getValidVars(conditions, table_data), conditions, table_data)
+    if (denominator == 0):
+        return 0.0
+    else:
+        return numerator/denominator
+
+# The idea here was that if you have chain kind of structure A-> B-> C-D->.....A->100
+# and if you are asked to find P(C=+|D=-) then there is no point iterating over the entire loop
+# That is any point after D makes no sense but to be safer the algorithm I have written below will first select relevant
+# variable by finding the latest element in all_variables given the queries.
+# Now start from that latest(index) on and see if the parent of next variable is in the list of relevant variable
+# then increase the size of relevant variable. In worst case scenario you will have one more level on unnecessary children
+# even though actual relevant should have their parent above them
+def getValidVars(queries, table_data):
+    variables = queries.keys()
+    all_variables = table_data['all_vars']
+
+    #Find var in variables such that index of var in all_Variables is max
+    max_i = -1
+    for var in variables:
+        temp = all_variables.index(var)
+        if (temp > max_i):
+            max_i = temp
+
+    relevantVars = all_variables[0:max_i+1]
+
+    updatedI = -1
+    for var in all_variables[max_i + 1 :]:
+        #parentInRelevant=False
+        for _p in table_data[var].parents:
+            if (_p in relevantVars):
+                updatedI = all_variables.index(var)
+                break
+
+    if (updatedI != -1 and updatedI > max_i):
+        relevantVars = all_variables[0:updatedI+1]
+
+    #if (len(relevantVars) != len(all_variables)):
+    #    print " Len of relevant vars : ", len(relevantVars), " and all vars : ", len(all_variables)
+    return relevantVars
 
 def relevantNodes(parents, i):
     length, re_list = len(parents), list(parents)
@@ -279,8 +324,11 @@ def main(fileName):
     table_lines, problems, utility = Parse.parseLines(fileName)
 
     table = KB.parse(table_lines)
+    #print table
     problems = Problem.parse(problems)
+    #print problems
     utility = Node.parse(utility)
+    #print utility
 
     target = open('output.txt', 'w+')
 
