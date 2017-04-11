@@ -3,6 +3,8 @@ __author__ = 'deepika'
 import copy
 import math
 import sys
+import logging
+logging.basicConfig(filename='bayesian.log',level=logging.DEBUG)
 
 def my_round(data, precise):
 
@@ -117,12 +119,15 @@ def handleProbability(queries, conditions, table_data):
         return 0.0
     p = 0.0
     if (len(conditions) == 0): #probability of the for P(A, B, C) or P(A) then do enumeration_all directly
+        logging.debug(" Calling all with evidence : " + str(queries))
         p = enumeration_all(table_data['all_vars'], queries, table_data)
     else:
+        logging.debug(" Calling ask with queries and conditions : " + str(queries) + str(conditions))
         p = enumeration_ask(queries, conditions, table_data)
     return p
 
 def enumeration_all(queries, conditions, table_data):
+    logging.debug( " find prob of  : " + str(queries) + "given conditions"+ str(conditions))
     if not queries:
         return 1.0
     Y, rest = queries[0], queries[1:]
@@ -160,17 +165,20 @@ def relevantNodes(parents, i):
 
 def handleUtility(utility, queries, conditions, table_data):
 
+    print " EU "
     eu = 0
     for i in range(2**len(utility.parents)):
         queryUpdated = relevantNodes(utility.parents, i)
 
         conditionsUpdated = dict(queries)
         conditionsUpdated.update(conditions)
+        print queryUpdated, conditionsUpdated
         eu += utility.prob_table[i]*handleProbability(queryUpdated, conditionsUpdated, table_data)
     return eu
 
 def handleMaximumUtility(utility, queries, conditions, table):
-
+    print "MEU"
+    print " Queries : ", queries
     maxEU = -sys.maxint
     maxEU_Index = None
     for i in range(2**len(queries)):
@@ -180,6 +188,8 @@ def handleMaximumUtility(utility, queries, conditions, table):
         if (eu > maxEU):
             maxEU=eu
             maxEU_Index=i
+        #resultTemp = indexToNodes(i, len(queries))
+        #print ' '.join(resultTemp), eu
     result = indexToNodes(maxEU_Index, len(queries))
 
     return ' '.join(result), maxEU
@@ -276,6 +286,7 @@ class KB:
         return table
 
 def main(fileName):
+    print "XYZ"
     table_lines, problems, utility = Parse.parseLines(fileName)
 
     table = KB.parse(table_lines)
@@ -288,9 +299,7 @@ def main(fileName):
         if (problem.type == 'P'):
             result = handleProbability(problem.queries, problem.conditions, table)
             result = my_round(result, 2)
-            format(result, '.2f')
             target.write(str(format(result, '.2f')) + "\n")
-            #print "Write probability", format(result, '.2f')
         elif (problem.type == 'EU'):
             result = handleUtility(utility, problem.queries, problem.conditions, table)
             result = int(( result * 100 ) + 0.5) / float(100)

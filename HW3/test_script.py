@@ -2,7 +2,7 @@ __author__ = 'deepika'
 
 ##This script will automatically run all test cases. And will report mismatches if any.
 
-import hw3cs561s2017 as workflow
+import hw3cs561s2017 as workflow #debug_
 import os
 
 basepath = os.path.dirname(__file__)
