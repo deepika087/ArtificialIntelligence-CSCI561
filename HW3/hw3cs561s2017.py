@@ -1,8 +1,77 @@
 __author__ = 'deepika'
 
-import copy
 import math
 import sys
+
+def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
+    return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+
+class ProbDist:
+    def __init__(self, varname='?', freqs=None):
+        """If freqs is given, it is a dictionary of values - frequency pairs,
+        then ProbDist is normalized."""
+        self.prob = {}
+        self.varname = varname
+        self.values = []
+        if freqs:
+            for (v, p) in freqs.items():
+                self[v] = p
+            self.normalize()
+
+    def normalize(self):
+        """Make sure the probabilities of all values sum to 1.
+        Returns the normalized distribution.
+        Raises a ZeroDivisionError if the sum of the values is 0."""
+        total = sum(self.prob.values())
+        if not isclose(total, 1.0):
+            for val in self.prob:
+                self.prob[val] /= total
+        return self
+
+    def show_approx(self, numfmt='{:.3g}'):
+        """Show the probabilities rounded and sorted by key, for the
+        sake of portable doctests."""
+        return ', '.join([('{}: ' + numfmt).format(v, p)
+                          for (v, p) in sorted(self.prob.items())])
+
+
+class Factor:
+    """A factor in a joint distribution."""
+
+    def __init__(self, variables, cpt):
+        self.variables = variables
+        self.cpt = cpt
+
+    def pointwise_product(self, other, bn):
+        """Multiply two factors, combining their variables."""
+        variables = list(set(self.variables) | set(other.variables))
+        cpt = {event_values(e, variables): self.p(e) * other.p(e)
+               for e in all_events(variables, bn, {})}
+        return Factor(variables, cpt)
+
+    def sum_out(self, var, bn):
+        """Make a factor eliminating var by summing over its values."""
+        variables = [X for X in self.variables if X != var]
+        cpt = {event_values(e, variables): sum(self.p(extend(e, var, val))
+                                               for val in [0, 1])
+               for e in all_events(variables, bn, {})}
+        return Factor(variables, cpt)
+
+    def normalize(self):
+        """Return my probabilities; must be down to one variable."""
+        #assert len(self.variables) == 1
+        return ProbDist(self.variables[0],
+                        {k: v for ((k,), v) in self.cpt.items()})
+
+    def p(self, e):
+        """Look up my value tabulated for e."""
+        return self.cpt[event_values(e, self.variables)]
+
+    def __repr__(self):
+        return str(self.variables) + " " + str(self.cpt)
+
+    def __str__(self):
+        return self.__repr__()
 
 def my_round(data, precise):
 
@@ -118,25 +187,70 @@ def handleProbability(queries, conditions, table_data):
     p = 0.0
     if (len(conditions) == 0): #probability of the for P(A, B, C) or P(A) then do enumeration_all directly
         p = enumeration_all(table_data['all_vars'], queries, table_data)
+        #print " receeived p = ", p
     else:
         p = enumeration_ask(queries, conditions, table_data)
     return p
 
-def enumeration_all(queries, conditions, table_data):
-    if not queries:
-        return 1.0
-    Y, rest = queries[0], queries[1:]
-    YNode = table_data[Y]
+def extend(s, var, val):
+    s2 = s.copy()
+    s2[var] = val
+    return s2
 
-    #Taken from AIMA pseudo code as given on github
-    if Y in conditions.keys():
-        return YNode.p(conditions[Y], conditions) * enumeration_all(queries[1:], conditions, table_data)
+def all_events(variables, table_data, evidence):
+    if not variables:
+        yield evidence
     else:
-        ey_true = copy.copy(conditions)
-        ey_true[Y] = 1
-        ey_false = copy.copy(conditions)
-        ey_false[Y] = 0
-        return YNode.p(1, conditions) * enumeration_all(queries[1:], ey_true, table_data) + YNode.p(0, conditions) * enumeration_all(queries[1:], ey_false, table_data)
+        X, rest = variables[0], variables[1:]
+        for e1 in all_events(rest, table_data, evidence):
+            for x in [0, 1]:
+                yield extend(e1, X, x)
+
+def event_values(event, variables):
+
+    if isinstance(event, tuple) and len(event) == len(variables):
+        return event
+    else:
+        return tuple([event[var] for var in variables])
+
+def make_factor(var, evidence, table_data):
+    node = table_data[var]
+    variables = [X for X in [var] + node.parents if X not in evidence]
+    #print "variables = ", variables
+
+    cpt = {event_values(e1, variables): node.p(e1[var], e1)
+           for e1 in all_events(variables, table_data, evidence)}
+    return Factor(variables, cpt)
+
+def is_hidden(var, queries, conditions):
+    #print var, queries, conditions
+    return var not in queries or var not in conditions
+
+def pointwise_product(factors, bn):
+    return reduce(lambda f, g: f.pointwise_product(g, bn), factors)
+
+def sum_out(var, factors, bn):
+    result, var_factors = [], []
+    for f in factors:
+        (var_factors if var in f.variables else result).append(f)
+
+    if (len(var_factors) > 0):
+        fact = pointwise_product(var_factors, bn)
+        if (isinstance(fact, Factor)):
+            result.append(fact.sum_out(var, bn))
+    return result
+
+#this function will receive probabilities of the form P(A,B,C)
+def enumeration_all(queries, conditions, table_data):
+    factors = []
+    for var in reversed(table_data['all_vars']):
+        result = make_factor(var, conditions, table_data)
+        factors.append(result)
+        if is_hidden(var, queries, conditions):
+            factors = sum_out(var, factors, table_data)
+    result = pointwise_product(factors, table_data)
+
+    return result.cpt.values()[0]
 
 # This function will be called when probability is of the form P(A,B|C,D)
 # in which case compute P(A,B,C,D)/P(C,D). Hence numerator as well as denominator will call
@@ -144,52 +258,12 @@ def enumeration_all(queries, conditions, table_data):
 def enumeration_ask(queries, conditions, table_data):
 
     queries.update(conditions)
-    getValidVars(queries, table_data)
-
-    #numerator = enumeration_all(table_data['all_vars'], queries, table_data)
-    #denominator = enumeration_all(table_data['all_vars'], conditions, table_data)
-
-    numerator = enumeration_all(getValidVars(queries, table_data), queries, table_data)
-    denominator = enumeration_all(getValidVars(conditions, table_data), conditions, table_data)
+    numerator = enumeration_all(table_data['all_vars'], queries, table_data)
+    denominator = enumeration_all(table_data['all_vars'], conditions, table_data)
     if (denominator == 0):
         return 0.0
     else:
         return numerator/denominator
-
-# The idea here was that if you have chain kind of structure A-> B-> C-D->.....A->100
-# and if you are asked to find P(C=+|D=-) then there is no point iterating over the entire loop
-# That is any point after D makes no sense but to be safer the algorithm I have written below will first select relevant
-# variable by finding the latest element in all_variables given the queries.
-# Now start from that latest(index) on and see if the parent of next variable is in the list of relevant variable
-# then increase the size of relevant variable. In worst case scenario you will have one more level on unnecessary children
-# even though actual relevant should have their parent above them
-def getValidVars(queries, table_data):
-    variables = queries.keys()
-    all_variables = table_data['all_vars']
-
-    #Find var in variables such that index of var in all_Variables is max
-    max_i = -1
-    for var in variables:
-        temp = all_variables.index(var)
-        if (temp > max_i):
-            max_i = temp
-
-    relevantVars = all_variables[0:max_i+1]
-
-    updatedI = -1
-    for var in all_variables[max_i + 1 :]:
-        #parentInRelevant=False
-        for _p in table_data[var].parents:
-            if (_p in relevantVars):
-                updatedI = all_variables.index(var)
-                break
-
-    if (updatedI != -1 and updatedI > max_i):
-        relevantVars = all_variables[0:updatedI+1]
-
-    #if (len(relevantVars) != len(all_variables)):
-    #    print " Len of relevant vars : ", len(relevantVars), " and all vars : ", len(all_variables)
-    return relevantVars
 
 def relevantNodes(parents, i):
     length, re_list = len(parents), list(parents)
@@ -293,6 +367,7 @@ class Node(object):
         for parent in self.parents:
             index = (index<<1) + evidence[parent]
 
+        #print "Fetching index = ", index, " from ", self.prob_table
         if (sign == 1):
             return self.prob_table[index]
         else:
@@ -334,12 +409,13 @@ def main(fileName):
 
     for problem in problems:
         if (problem.type == 'P'):
+            #print " Problem : ", problem
             result = handleProbability(problem.queries, problem.conditions, table)
             result = my_round(result, 2)
-            format(result, '.2f')
             target.write(str(format(result, '.2f')) + "\n")
             #print "Write probability", format(result, '.2f')
         elif (problem.type == 'EU'):
+            #print " Problem : ", problem
             result = handleUtility(utility, problem.queries, problem.conditions, table)
             result = int(( result * 100 ) + 0.5) / float(100)
             format(result, '.2f')
@@ -349,6 +425,7 @@ def main(fileName):
                 target.write( str(int(math.ceil(result))) + "\n")
         else:
             #print " Handle MEU"
+            #print " Problem : ", problem
             resultTuple =  handleMaximumUtility(utility, problem.queries, problem.conditions, table)
             result = resultTuple[1]
             result = int(( result * 100 ) + 0.5) / float(100)

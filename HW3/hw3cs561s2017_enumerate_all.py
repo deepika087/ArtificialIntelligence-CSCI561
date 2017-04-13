@@ -1,14 +1,8 @@
 __author__ = 'deepika'
 
-#This code will not run for very large networks such as input09.txt
-#However it is good start since algorthm if clear in this file than the one given in AIMA
 import copy
 import math
 import sys
-import time
-import logging
-
-logging.basicConfig(filename='bayesian.log',level=logging.DEBUG)
 
 def my_round(data, precise):
 
@@ -22,50 +16,6 @@ def my_round(data, precise):
     num = num/10
     result = num/(10.0**(precise)) + int(updated_data)
     return -result if sign else result
-
-class Calculations:
-
-    @staticmethod
-    def computeProbability(queries, table_data):
-        logging.debug("Queries : " + str(queries))
-        if (len(queries) == 0):
-            return 1
-
-        parentFound=True
-
-        for key in queries.keys():
-            for parent in table_data[key].parents:
-                if not parent in queries.keys():
-                    parentFound = False
-                    break
-            if (not parentFound):
-                break
-        if parentFound:
-            result = 1
-            for key in queries.keys():
-                if (table_data[key].prob_table is None):
-                    continue
-                index = 0
-                #print queries
-                for parent in table_data[key].parents:
-                    index = (index<<1) + queries[parent]
-                result *= table_data[key].prob_table[index] if queries[key] else (1 - table_data[key].prob_table[index])
-                #print " Result before exiting recursion for node : ", key, " is ", result
-            return result
-
-        for key in queries.keys():
-            #Add all parents in queries.
-            for parent in table_data[key].parents:
-                if (parent not in queries.keys()):
-                    queries0 = copy.copy(queries)
-                    queries0.update({parent:0})
-
-                    queries1 = copy.copy(queries)
-                    queries1.update({parent:1})
-
-                    result = Calculations.computeProbability(queries0, table_data) + Calculations.computeProbability(queries1, table_data)
-                    #print " Result after recursion for node : ", key, " is ", result
-        return result
 
 class Parse:
 
@@ -96,7 +46,6 @@ class Parse:
 
     @staticmethod
     def index(line):
-        print line
         seq = 0
         for mark in line:
             seq = (seq<<1) + (1 if mark.strip() =='+' else 0)
@@ -139,10 +88,10 @@ class Problem(object):
                 line = line[4:len(line)-1]
                 task_type = 'MEU'
 
-            if (' | ' in line):
-                line = line.split(' | ')
-                query = line[0].split(', ')
-                conditions = line[1].split(', ')
+            if ('|' in line):
+                line = line.split('|')
+                query = line[0].strip().split(', ')
+                conditions = line[1].strip().split(', ')
             else:
                 query = line.split(', ')
                 conditions = []
@@ -164,28 +113,92 @@ def contraCheck(queries, conditions):
     return False
 
 def handleProbability(queries, conditions, table_data):
-    logging.debug("-===================Starting Probability======================-")
     if (contraCheck(queries, conditions)):
-        return 0
+        return 0.0
+    p = 0.0
+    if (len(conditions) == 0): #probability of the for P(A, B, C) or P(A) then do enumeration_all directly
+        p = enumeration_all(getValidVars(queries, table_data), queries, table_data)
+    else:
+        p = enumeration_ask(queries, conditions, table_data)
+    return p
+
+def enumeration_all(queries, conditions, table_data):
+    if not queries:
+        return 1.0
+    Y, rest = queries[0], queries[1:]
+    YNode = table_data[Y]
+
+    #Taken from AIMA pseudo code as given on github
+    if Y in conditions.keys():
+        return YNode.p(conditions[Y], conditions) * enumeration_all(queries[1:], conditions, table_data)
+    else:
+        ey_true = copy.copy(conditions)
+        ey_true[Y] = 1
+        ey_false = copy.copy(conditions)
+        ey_false[Y] = 0
+        return YNode.p(1, conditions) * enumeration_all(queries[1:], ey_true, table_data) + YNode.p(0, conditions) * enumeration_all(queries[1:], ey_false, table_data)
+
+# This function will be called when probability is of the form P(A,B|C,D)
+# in which case compute P(A,B,C,D)/P(C,D). Hence numerator as well as denominator will call
+# enumeration_all individually.
+def enumeration_ask(queries, conditions, table_data):
 
     queries.update(conditions)
-    numerator = Calculations.computeProbability(queries, table_data)
-    denominator = Calculations.computeProbability(conditions, table_data)
-    logging.debug("-===================Ending Probability======================-")
-    #print " Prob0 : ", numerator, " prob1 : ", denominator
-    return numerator/denominator
+    #numerator = enumeration_all(table_data['all_vars'], queries, table_data)
+    #denominator = enumeration_all(table_data['all_vars'], conditions, table_data)
+    numerator = enumeration_all(getValidVars(queries, table_data), queries, table_data)
+    denominator = enumeration_all(getValidVars(conditions, table_data), conditions, table_data)
+    if (denominator == 0):
+        return 0.0
+    else:
+        return numerator/denominator
+
+# The idea here was that if you have chain kind of structure A-> B-> C-D->.....A->100
+# and if you are asked to find P(C=+|D=-) then there is no point iterating over the entire loop
+# That is any point after D makes no sense but to be safer the algorithm I have written below will first select relevant
+# variable by finding the latest element in all_variables given the queries.
+# Now start from that latest(index) on and see if the parent of next variable is in the list of relevant variable
+# then increase the size of relevant variable. In worst case scenario you will have one more level on unnecessary children
+# even though actual relevant should have their parent above them
+def getValidVars(queries, table_data):
+    variables = queries.keys()
+    all_variables = table_data['all_vars']
+
+    #Find var in variables such that index of var in all_Variables is max
+    max_i = -1
+    for var in variables:
+        temp = all_variables.index(var)
+        if (temp > max_i):
+            max_i = temp
+
+    relevantVars = all_variables[0:max_i+1]
+
+    updatedI = -1
+    for var in all_variables[max_i + 1 :]:
+        #parentInRelevant=False
+        for _p in table_data[var].parents:
+            if (_p in relevantVars):
+                updatedI = all_variables.index(var)
+                break
+
+    if (updatedI != -1 and updatedI > max_i):
+        relevantVars = all_variables[0:updatedI+1]
+
+    #if (len(relevantVars) != len(all_variables)):
+    #    print " Len of relevant vars : ", len(relevantVars), " and all vars : ", len(all_variables), relevantVars
+    return relevantVars
 
 def relevantNodes(parents, i):
-        length, re_list = len(parents), list(parents)
-        temp = i
-        re_list.reverse()
-        if (2**length-1) < i:
-            return None
-        result = dict()
-        for key in re_list:
-            result[key] = temp%2
-            temp = temp /2
-        return result
+    length, re_list = len(parents), list(parents)
+    temp = i
+    re_list.reverse()
+    if (2**length-1) < i:
+        return None
+    result = dict()
+    for key in re_list:
+        result[key] = temp%2
+        temp = temp /2
+    return result
 
 def handleUtility(utility, queries, conditions, table_data):
 
@@ -213,7 +226,7 @@ def handleMaximumUtility(utility, queries, conditions, table):
 
     return ' '.join(result), maxEU
 
-#Nodes not required becuase all we have to send is + - - and so on
+# Nodes not required becuase all we have to send is + - - and so on
 # not for which particular nodes
 def indexToNodes(index, length):
     if index > (2**length-1):
@@ -224,6 +237,7 @@ def indexToNodes(index, length):
         result.append('+' if flag else '-')
         tmp = tmp - flag* 2**i
     return result
+
 class Node(object):
 
     def __init__(self, name, parents, prob_table):
@@ -268,7 +282,18 @@ class Node(object):
     def __str__(self):
         return self.__repr__()
 
+    def p(self, sign, evidence):
+        if (self.prob_table is None):
+            return 1.0
 
+        index = 0
+        for parent in self.parents:
+            index = (index<<1) + evidence[parent]
+
+        if (sign == 1):
+            return self.prob_table[index]
+        else:
+            return 1 - self.prob_table[index]
 
 class KB:
 
@@ -277,6 +302,7 @@ class KB:
         table = dict()
         data = []
         count = 0
+        table['all_vars'] = [] #Created this array because table.keys() returns variables such that child occurs before parent
         for line in table_lines:
             line = line.strip()
             count = count + 1
@@ -288,32 +314,28 @@ class KB:
                 node = Node.parse(data)
                 data = []
                 table[node.name] = node
+                table['all_vars'].append(node.name)
         return table
 
-if __name__ == "__main__":
-    #for fileName in ['input01.txt', 'input02.txt', 'input03.txt', 'input04.txt', 'input05.txt', 'input06.txt']:
-    fileName='input.txt'
+def main(fileName):
     table_lines, problems, utility = Parse.parseLines(fileName)
-    table = KB.parse(table_lines) #Dictionary of node and corresponding Data
-    print table
 
+    table = KB.parse(table_lines)
+    #print table
     problems = Problem.parse(problems)
-    print problems
-
+    #print problems
     utility = Node.parse(utility)
-    print utility
+    #print utility
 
     target = open('output.txt', 'w+')
-    start = time.time()
+
     for problem in problems:
         if (problem.type == 'P'):
-            print "Working on P"
             result = handleProbability(problem.queries, problem.conditions, table)
-            result = int(( result * 100 ) + 0.5) / float(100)
+            result = my_round(result, 2)
             target.write(str(format(result, '.2f')) + "\n")
-            #print type(result)
+            #print "Write probability", format(result, '.2f')
         elif (problem.type == 'EU'):
-            print "Working on EU"
             result = handleUtility(utility, problem.queries, problem.conditions, table)
             result = int(( result * 100 ) + 0.5) / float(100)
             format(result, '.2f')
@@ -322,7 +344,7 @@ if __name__ == "__main__":
             else:
                 target.write( str(int(math.ceil(result))) + "\n")
         else:
-            print "Working on MEU"
+            #print " Handle MEU"
             resultTuple =  handleMaximumUtility(utility, problem.queries, problem.conditions, table)
             result = resultTuple[1]
             result = int(( result * 100 ) + 0.5) / float(100)
@@ -332,4 +354,7 @@ if __name__ == "__main__":
             else:
                 result = int(math.ceil(result))
             target.write( resultTuple[0] + " " + str(result) + "\n" )
-    print "completed", time.time() - start
+
+if __name__ == "__main__":
+    fileName='input.txt'
+    main(fileName)
